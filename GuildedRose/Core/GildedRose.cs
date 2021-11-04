@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace Core
 {
@@ -13,78 +14,93 @@ namespace Core
 
         public void UpdateQuality()
         {
-            for (var i = 0; i < Items.Count; i++)
+            foreach (var item in Items)
             {
-                if (Items[i].Name != "Aged Brie" && Items[i].Name != "Backstage passes to a TAFKAL80ETC concert")
+                var rules = new List<QualityRule>
                 {
-                    if (Items[i].Quality > 0)
+                    new QualityRule {
+                        Name = "Once the sell by date has passed, Quality degrades twice as fast",
+                        ApplyWhen = item.IsPassedSellByDate(),
+                        Adjustment = (item) => item.Quality -= 2
+                    },
+                    new QualityRule {
+                        Name = "Aged Brie actually increases in Quality the older it gets",
+                        ApplyWhen = item.Name == "Aged Brie",
+                        Adjustment = (item) => item.Quality += 1
+                    },
+                    new QualityRule {
+                        Name = "Backstage passes, like aged brie, increases in Quality as its SellIn value approaches",
+                        ApplyWhen = item.IsBackStagePass() && item.SellIn > 10,
+                        Adjustment = (item) => item.Quality += 1
+                    },
+                    new QualityRule {
+                        Name = "Backstage passes, Quality increases by 2 when there are 10 days or less",
+                        ApplyWhen = item.IsBackStagePass() && (item.SellIn > 5 && item.SellIn <= 10),
+                        Adjustment = (item) => item.Quality += 2
+                    },
+                    new QualityRule {
+                        Name = "Backstage passes Quality increases by 3 when there are 5 days or less",
+                        ApplyWhen = item.IsBackStagePass() && (item.SellIn > 0 && item.SellIn <= 5),
+                        Adjustment = (item) => item.Quality += 3
+                    },
+                    new QualityRule {
+                        Name = "Backstage passes, Quality drops to 0 after the concert",
+                        ApplyWhen = item.IsBackStagePass() && item.SellIn <= 0,
+                        Adjustment = (item) => item.Quality = 0
+                    },
+                    new QualityRule {
+                        Name = "The Quality of an item is never negative",
+                        ApplyWhen = item.Quality < 0,
+                        Adjustment = (item) => item.Quality = 0
+                    },
+                    new QualityRule {
+                        Name = "The Quality of an item is never more than 50",
+                        ApplyWhen = item.Quality > 50,
+                        Adjustment = (item) => item.Quality = 50
+                    },
+                    new QualityRule {
+                        Name = "Sulfuras, being a legendary item, never has to be sold or decreases in Quality",
+                        ApplyWhen = item.IsSulfurasHandOfRagnaros(),
+                        Adjustment = (item) => item.Quality = item.Quality
+                    }
+                };
+
+                foreach (var rule in rules)
+                {
+                    if (rule.ApplyWhen)
                     {
-                        if (Items[i].Name != "Sulfuras, Hand of Ragnaros")
-                        {
-                            Items[i].Quality = Items[i].Quality - 1;
-                        }
+                        rule.Adjustment.Invoke(item);
                     }
                 }
-                else
-                {
-                    if (Items[i].Quality < 50)
-                    {
-                        Items[i].Quality = Items[i].Quality + 1;
 
-                        if (Items[i].Name == "Backstage passes to a TAFKAL80ETC concert")
-                        {
-                            if (Items[i].SellIn < 11)
-                            {
-                                if (Items[i].Quality < 50)
-                                {
-                                    Items[i].Quality = Items[i].Quality + 1;
-                                }
-                            }
-
-                            if (Items[i].SellIn < 6)
-                            {
-                                if (Items[i].Quality < 50)
-                                {
-                                    Items[i].Quality = Items[i].Quality + 1;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (Items[i].Name != "Sulfuras, Hand of Ragnaros")
-                {
-                    Items[i].SellIn = Items[i].SellIn - 1;
-                }
-
-                if (Items[i].SellIn < 0)
-                {
-                    if (Items[i].Name != "Aged Brie")
-                    {
-                        if (Items[i].Name != "Backstage passes to a TAFKAL80ETC concert")
-                        {
-                            if (Items[i].Quality > 0)
-                            {
-                                if (Items[i].Name != "Sulfuras, Hand of Ragnaros")
-                                {
-                                    Items[i].Quality = Items[i].Quality - 1;
-                                }
-                            }
-                        }
-                        else
-                        {
-                            Items[i].Quality = Items[i].Quality - Items[i].Quality;
-                        }
-                    }
-                    else
-                    {
-                        if (Items[i].Quality < 50)
-                        {
-                            Items[i].Quality = Items[i].Quality + 1;
-                        }
-                    }
-                }
+                item.SellIn -= item.SellIn == 0 && !item.IsSulfurasHandOfRagnaros() ? 0 : 1;
             }
+        }
+
+        internal record QualityRule
+        {
+            public string Name { get; init; }
+            public bool ApplyWhen { get; init; }
+
+            public Action<Item> Adjustment { get; set; }
+        }
+    }
+
+    internal static class ItemExtensions
+    {
+        public static bool IsBackStagePass(this Item item)
+        {
+            return item.Name == "Backstage passes to a TAFKAL80ETC concert";
+        }
+
+        public static bool IsPassedSellByDate(this Item item)
+        {
+            return item.SellIn <= 0;
+        }
+
+        public static bool IsSulfurasHandOfRagnaros(this Item item)
+        {
+            return item.Name == "Sulfuras, Hand of Ragnaros";
         }
     }
 }
